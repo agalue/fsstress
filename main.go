@@ -20,10 +20,11 @@ import (
 )
 
 var (
-	workers = 2
-	min     = 1
-	max     = 100
-	totals  = Totals{}
+	workers   = 2
+	min       = 5
+	max       = 200
+	chunkSize = 262144
+	totals    = Totals{}
 )
 
 type Result struct {
@@ -81,6 +82,7 @@ func main() {
 	flag.IntVar(&min, "min", min, "Minimum file size in Megabytes")
 	flag.IntVar(&max, "max", max, "Maximum file size in Megabytes")
 	flag.IntVar(&workers, "workers", workers, "Number of workers")
+	flag.IntVar(&chunkSize, "cs", chunkSize, "Chunk size (read/write)")
 
 	flag.Parse()
 
@@ -129,7 +131,7 @@ func writeFile(fileName string, size int) (int, error) {
 	total := 0
 	if fo, err := os.Create(fileName); err == nil {
 		for total <= size {
-			if out, err := fo.Write([]byte(strings.Repeat("0", 1024))); err == nil {
+			if out, err := fo.Write([]byte(strings.Repeat("0", chunkSize))); err == nil {
 				total += out
 			} else {
 				return total, err
@@ -144,7 +146,7 @@ func writeFile(fileName string, size int) (int, error) {
 func readFile(fileName string) (int, error) {
 	total := 0
 	if fi, err := os.Open(fileName); err == nil {
-		buf := make([]byte, 1024)
+		buf := make([]byte, chunkSize)
 		for {
 			in, err := fi.Read(buf)
 			if err != nil {

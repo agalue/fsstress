@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestByteCountIEC(t *testing.T) {
@@ -93,5 +94,34 @@ func TestWorkerFlow(t *testing.T) {
 	files, _ = os.ReadDir(path)
 	if len(files) != 0 {
 		t.Fail()
+	}
+}
+
+func TestChunkSize(t *testing.T) {
+	t.SkipNow()
+
+	path, err := os.MkdirTemp("", "sample")
+	if err != nil {
+		t.FailNow()
+	}
+	defer os.RemoveAll(path)
+
+	fileName := filepath.Join(path, "test_chunk")
+
+	chunks := []int{1024, 4096, 32768, 65536, 131072, 262144, 524288}
+	size := 1073741824 // ~ 1GB
+
+	for _, chunk := range chunks {
+		chunkSize = chunk
+
+		start := time.Now()
+		writeFile(fileName, size)
+		fmt.Printf("Write for %d took %s seconds\n", chunk, time.Since(start))
+
+		start = time.Now()
+		readFile(fileName)
+		fmt.Printf("Read for %d took %s seconds\n", chunk, time.Since(start))
+
+		os.Remove(fileName)
 	}
 }
