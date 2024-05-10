@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -139,9 +138,10 @@ func processResults(results chan Result) {
 
 func writeFile(fileName string, size int) (int, error) {
 	total := 0
+	chunk := bytes.Repeat([]byte{48}, chunkSize)
 	if fo, err := os.Create(fileName); err == nil {
 		for total <= size {
-			if out, err := fo.Write([]byte(strings.Repeat("0", chunkSize))); err == nil {
+			if out, err := fo.Write(chunk); err == nil {
 				total += out
 			} else {
 				return total, err
