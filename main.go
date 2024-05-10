@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -17,17 +19,56 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-var workers, min, max = 2, 1, 100
-var total_operations, total_errors = 0, 0
+var (
+	workers = 2
+	min     = 1
+	max     = 100
+	totals  = Totals{}
+)
 
 type Result struct {
 	Size          int
-	BytesRead     int
-	BytesWrote    int
+	ReadBytes     int
+	WriteBytes    int
 	ReadError     bool
 	WriteError    bool
 	ReadDuration  time.Duration
 	WriteDuration time.Duration
+}
+
+type Totals struct {
+	Operations  int
+	Bytes       int
+	ReadBytes   int
+	WriteBytes  int
+	ReadErrors  int
+	WriteErrors int
+}
+
+func (t *Totals) Update(r Result) {
+	t.Operations++
+	if r.ReadError {
+		t.ReadErrors++
+	}
+	if r.WriteError {
+		t.WriteErrors++
+	}
+	t.Bytes += r.Size
+	t.ReadBytes += r.ReadBytes
+	t.WriteBytes += r.WriteBytes
+}
+
+func (t *Totals) String() string {
+	buffer := bytes.Buffer{}
+	buffer.WriteRune('{')
+	buffer.WriteString(fmt.Sprintf("operations: %d, ", t.Operations))
+	buffer.WriteString(fmt.Sprintf("expectedBytes: %s, ", byteCountIEC(uint64(t.Bytes))))
+	buffer.WriteString(fmt.Sprintf("readBytes: %s, ", byteCountIEC(uint64(t.ReadBytes))))
+	buffer.WriteString(fmt.Sprintf("writeBytes: %s, ", byteCountIEC(uint64(t.WriteBytes))))
+	buffer.WriteString(fmt.Sprintf("readErrors: %d, ", t.ReadErrors))
+	buffer.WriteString(fmt.Sprintf("writeErrors: %d", t.WriteErrors))
+	buffer.WriteRune('}')
+	return buffer.String()
 }
 
 func main() {
@@ -45,6 +86,13 @@ func main() {
 
 	size := getAvailDiskSpace(wd)
 	slog.Info("Available Disk Space", slog.String("path", wd), slog.String("free", byteCountIEC(size)))
+
+	potentialMax := uint64(workers * max * 1024 * 1024)
+	if potentialMax > size {
+		slog.Error("Cannot execute test due to disk space", slog.String("expected", byteCountIEC(potentialMax)))
+		os.Exit(1)
+	}
+
 	slog.Info("Starting data generation")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -65,18 +113,15 @@ func main() {
 	cancel()
 	wg.Wait()
 	close(results)
-	slog.Info("Good bye", slog.Int("total", total_operations), slog.Int("errors", total_errors))
+	if err := cleanUp(wd); err != nil {
+		slog.Error("Cannot cleanup", slog.String("error", err.Error()))
+	}
+	slog.Info("Good bye", slog.String("results", totals.String()))
 }
 
 func processResults(results chan Result) {
-	for results := range results {
-		total_operations++
-		if results.ReadError {
-			total_errors++
-		}
-		if results.WriteError {
-			total_errors++
-		}
+	for result := range results {
+		totals.Update(result)
 	}
 }
 
@@ -119,7 +164,7 @@ func readFile(fileName string) (int, error) {
 func startWorker(ctx context.Context, wg *sync.WaitGroup, id int, path string, results chan Result) {
 	defer wg.Done()
 	slog.Info("Starting worker", slog.Int("id", id))
-	fileName := fmt.Sprintf("%s/test_file_%d", path, id)
+	fileName := filepath.Join(path, fmt.Sprintf("test_file_%d", id))
 	for {
 		select {
 		case <-ctx.Done():
@@ -133,17 +178,23 @@ func startWorker(ctx context.Context, wg *sync.WaitGroup, id int, path string, r
 			wout, werr := writeFile(fileName, size)
 			wdur := time.Since(start)
 			slog.Info("End write", slog.Int("id", id), slog.String("total", byteCountIEC(uint64(wout))), slog.Duration("duration", wdur), slog.Bool("error", werr != nil))
+			if werr != nil {
+				slog.Error(werr.Error())
+			}
 
 			slog.Info("Start read", slog.Int("id", id), slog.String("size", byteCountIEC(uint64(size))))
 			start = time.Now()
 			rout, rerr := readFile(fileName)
 			rdur := time.Since(start)
 			slog.Info("End read", slog.Int("id", id), slog.String("total", byteCountIEC(uint64(rout))), slog.Duration("duration", rdur), slog.Bool("error", rerr != nil))
+			if rerr != nil {
+				slog.Error(rerr.Error())
+			}
 
 			results <- Result{
 				Size:          size,
-				BytesRead:     rout,
-				BytesWrote:    wout,
+				ReadBytes:     rout,
+				WriteBytes:    wout,
 				ReadDuration:  rdur,
 				WriteDuration: wdur,
 				ReadError:     rerr != nil,
@@ -160,6 +211,19 @@ func getAvailDiskSpace(wd string) uint64 {
 	var stat unix.Statfs_t
 	unix.Statfs(wd, &stat)
 	return stat.Bavail * uint64(stat.Bsize)
+}
+
+func cleanUp(path string) error {
+	files, err := filepath.Glob(filepath.Join(path, "test_file_*"))
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		if err := os.Remove(f); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func byteCountIEC(b uint64) string {
