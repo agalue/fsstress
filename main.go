@@ -38,12 +38,14 @@ type Result struct {
 }
 
 type Totals struct {
-	Operations  int
-	Bytes       int
-	ReadBytes   int
-	WriteBytes  int
-	ReadErrors  int
-	WriteErrors int
+	Operations       int
+	Bytes            int
+	ReadBytes        int
+	WriteBytes       int
+	ReadErrors       int
+	WriteErrors      int
+	ReadMaxDuration  time.Duration
+	WriteMaxDuration time.Duration
 }
 
 func (t *Totals) Update(r Result) {
@@ -57,6 +59,12 @@ func (t *Totals) Update(r Result) {
 	t.Bytes += r.Size
 	t.ReadBytes += r.ReadBytes
 	t.WriteBytes += r.WriteBytes
+	if t.WriteMaxDuration < r.WriteDuration {
+		t.WriteMaxDuration = r.WriteDuration
+	}
+	if t.ReadMaxDuration < r.ReadDuration {
+		t.ReadMaxDuration = r.ReadDuration
+	}
 }
 
 func (t *Totals) String() string {
@@ -67,7 +75,9 @@ func (t *Totals) String() string {
 	buffer.WriteString(fmt.Sprintf("readBytes: %s, ", byteCountIEC(uint64(t.ReadBytes))))
 	buffer.WriteString(fmt.Sprintf("writeBytes: %s, ", byteCountIEC(uint64(t.WriteBytes))))
 	buffer.WriteString(fmt.Sprintf("readErrors: %d, ", t.ReadErrors))
-	buffer.WriteString(fmt.Sprintf("writeErrors: %d", t.WriteErrors))
+	buffer.WriteString(fmt.Sprintf("writeErrors: %d, ", t.WriteErrors))
+	buffer.WriteString(fmt.Sprintf("maxReadDuration: %s, ", t.ReadMaxDuration))
+	buffer.WriteString(fmt.Sprintf("maxWriteDuration: %s", t.WriteMaxDuration))
 	buffer.WriteRune('}')
 	return buffer.String()
 }
