@@ -21,7 +21,7 @@ import (
 var (
 	workers   = 2
 	min       = 5
-	max       = 200
+	max       = 100
 	chunkSize = 262144
 	totals    = Totals{}
 )
