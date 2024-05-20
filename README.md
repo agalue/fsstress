@@ -31,7 +31,7 @@ packages:
 - nfs-common
 
 mounts:
-- ["$SERVER_IP:/data", "/mnt/data", "nfs", "defaults,_netdev", "0", "0"]
+- ["$SERVER_IP:/data", "/mnt/data", "nfs", "defaults,nconnect=8,noatime,_netdev", "0", "0"]
 
 runcmd:
 - snap install go --classic
@@ -51,7 +51,7 @@ multipass exec nfsclient -- mount | grep nfs
 You should see something like this:
 
 ```
-192.168.66.36:/data on /mnt type nfs4 (rw,relatime,vers=4.2,rsize=131072,wsize=131072,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,clientaddr=192.168.66.38,local_lock=none,addr=192.168.66.36,_netdev)
+192.168.66.64:/data on /mnt/data type nfs4 (rw,noatime,vers=4.2,rsize=131072,wsize=131072,namlen=255,hard,proto=tcp,nconnect=8,timeo=600,retrans=2,sec=sys,clientaddr=192.168.66.65,local_lock=none,addr=192.168.66.64,_netdev)
 ```
 
 ## Start the tool

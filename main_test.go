@@ -125,3 +125,12 @@ func TestChunkSize(t *testing.T) {
 		os.Remove(fileName)
 	}
 }
+
+func TestGenerateRandomString(t *testing.T) {
+	out := generateRandomString(16)
+	if len(out) == 16 {
+		fmt.Println(out)
+	} else {
+		t.Fail()
+	}
+}

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	crand "crypto/rand"
 	"flag"
 	"fmt"
 	"io"
@@ -24,6 +25,7 @@ var (
 	max       = 100
 	chunkSize = 262144
 	totals    = Totals{}
+	fprefix   = generateRandomString(16)
 )
 
 type Result struct {
@@ -82,6 +84,7 @@ func (t *Totals) String() string {
 }
 
 func main() {
+	var err error
 	wd, err := os.Getwd()
 	if err != nil {
 		fmt.Printf("Cannot get current directory: %s", err.Error())
@@ -176,7 +179,7 @@ func readFile(fileName string) (int, error) {
 func startWorker(ctx context.Context, wg *sync.WaitGroup, id int, path string, results chan Result) {
 	defer wg.Done()
 	slog.Info("Starting worker", slog.Int("id", id))
-	fileName := filepath.Join(path, fmt.Sprintf("test_file_%d", id))
+	fileName := filepath.Join(path, fmt.Sprintf("test_file_%s_%d", fprefix, id))
 	for {
 		select {
 		case <-ctx.Done():
@@ -189,7 +192,8 @@ func startWorker(ctx context.Context, wg *sync.WaitGroup, id int, path string, r
 			start := time.Now()
 			wout, werr := writeFile(fileName, size)
 			wdur := time.Since(start)
-			slog.Info("End write", slog.Int("id", id), slog.String("total", byteCountIEC(uint64(wout))), slog.Duration("duration", wdur), slog.Bool("error", werr != nil))
+			wspeed := byteCountIEC(uint64(float64(wout)/wdur.Seconds())) + "/sec"
+			slog.Info("End write", slog.Int("id", id), slog.String("total", byteCountIEC(uint64(wout))), slog.Duration("duration", wdur), slog.String("speed", wspeed), slog.Bool("error", werr != nil))
 			if werr != nil {
 				slog.Error(werr.Error())
 			}
@@ -198,7 +202,8 @@ func startWorker(ctx context.Context, wg *sync.WaitGroup, id int, path string, r
 			start = time.Now()
 			rout, rerr := readFile(fileName)
 			rdur := time.Since(start)
-			slog.Info("End read", slog.Int("id", id), slog.String("total", byteCountIEC(uint64(rout))), slog.Duration("duration", rdur), slog.Bool("error", rerr != nil))
+			rspeed := byteCountIEC(uint64(float64(rout)/rdur.Seconds())) + "/sec"
+			slog.Info("End read", slog.Int("id", id), slog.String("total", byteCountIEC(uint64(rout))), slog.Duration("duration", rdur), slog.String("speed", rspeed), slog.Bool("error", rerr != nil))
 			if rerr != nil {
 				slog.Error(rerr.Error())
 			}
@@ -226,7 +231,7 @@ func getAvailDiskSpace(wd string) uint64 {
 }
 
 func cleanUp(path string) error {
-	files, err := filepath.Glob(filepath.Join(path, "test_file_*"))
+	files, err := filepath.Glob(filepath.Join(path, fmt.Sprintf("test_file_%s_*", fprefix)))
 	if err != nil {
 		return err
 	}
@@ -249,4 +254,18 @@ func byteCountIEC(b uint64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.2f%ci", float64(b)/float64(div), "KMGTPE"[exp])
+}
+
+func generateRandomString(length int) string {
+	charset := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	charlen := len(charset)
+	randomBytes := make([]byte, length)
+	if _, err := crand.Read(randomBytes); err != nil {
+		// Use current timestamp as a workaround (ignoring provided length)
+		return fmt.Sprintf("%d", time.Now().UnixMilli())
+	}
+	for i := 0; i < length; i++ {
+		randomBytes[i] = charset[int(randomBytes[i])%charlen]
+	}
+	return string(randomBytes)
 }
