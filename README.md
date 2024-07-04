@@ -61,7 +61,7 @@ runcmd:
 - snap install go --classic
 - git clone https://github.com/agalue/fsstress.git /tmp/fsstress
 - cd /tmp/fsstress
-- su -c 'go build -o /home/ubuntu/fsstress -buildvcs=false' ubuntu
+- go build -o /usr/local/bin/fsstress -buildvcs=false
 - apt install -y linux-modules-extra-\$(uname -r) nfs-common cifs-utils
 - modprobe cifs
 - mkdir -p /mnt/nfs /mnt/smb
@@ -91,7 +91,7 @@ The output should see something like this:
 The following starts the tool for the NFS folder (you can do the same for the CIFS folder from another shell):
 
 ```bash
-multipass exec client -- ./fsstress -path /mnt/nfs -workers 4
+multipass exec client -- fsstress -path /mnt/nfs -workers 4
 ```
 
 While the above is running, on another shell, you can verify that the data is being copied to the server:
