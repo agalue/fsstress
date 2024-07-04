@@ -6,7 +6,7 @@ To explain how to use it, let's create two Ubuntu 24.04 VMs using [Multipass](ht
 
 ## Create Server
 
-The following creates a server that exposes two directories, one with NFS (`/srv/nfs`) and another with SMB/CIFS (`/srv/samba`).
+The following creates a server that exposes two directories, one with NFS (`/srv/nfs`) and another with SMB/CIFS (`/srv/smb`).
 
 ```bash
 cat <<EOF | multipass launch --name server --cloud-init -
