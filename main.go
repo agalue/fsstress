@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	crand "crypto/rand"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"io"
@@ -16,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/agalue/fsstress/mem"
 	"golang.org/x/sys/unix"
 )
 
@@ -108,6 +111,7 @@ func main() {
 	}
 
 	slog.Info("Starting data generation")
+	go clearBufferCache(3 * time.Second)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -141,17 +145,19 @@ func processResults(results chan Result) {
 
 func writeFile(fileName string, size int) (int, error) {
 	total := 0
+
 	chunk := bytes.Repeat([]byte{48}, chunkSize)
 	if fo, err := os.Create(fileName); err == nil {
 		defer fo.Close()
+		w := bufio.NewWriter(fo)
 		for total <= size {
-			if out, err := fo.Write(chunk); err == nil {
+			if out, err := w.Write(chunk); err == nil {
 				total += out
 			} else {
 				return total, err
 			}
 		}
-		return total, nil
+		return total, w.Flush()
 	} else {
 		return total, err
 	}
@@ -259,15 +265,19 @@ func byteCountIEC(b uint64) string {
 }
 
 func generateRandomString(length int) string {
-	charset := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	charlen := len(charset)
-	randomBytes := make([]byte, length)
-	if _, err := crand.Read(randomBytes); err != nil {
+	b := make([]byte, 8)
+	if _, err := crand.Read(b); err != nil {
 		// Use current timestamp as a workaround (ignoring provided length)
 		return fmt.Sprintf("%d", time.Now().UnixMilli())
 	}
-	for i := 0; i < length; i++ {
-		randomBytes[i] = charset[int(randomBytes[i])%charlen]
+	return hex.EncodeToString(b)[:length]
+}
+
+func clearBufferCache(freq time.Duration) {
+	for ; ; <-time.After(freq) {
+		if err := mem.ClearBufferCache(); err != nil {
+			slog.Error("couldn't clear the buffer cache", slog.String("error", err.Error()))
+			return
+		}
 	}
-	return string(randomBytes)
 }

@@ -46,7 +46,7 @@ EOF
 
 ## Create Client
 
-The following creates a client and mount the NFS file system at `/mnt/nfs` and the CIFS one at `/mnt/smb`.
+The following creates a client and mounts the NFS file system at `/mnt/nfs` and the CIFS one at `/mnt/smb`. Run it from the folder on which you checked out this repository.
 
 ```bash
 SERVER_IP=$(multipass info server | grep IPv4 | awk '{print $2}')
@@ -58,16 +58,14 @@ write_files:
     SERVER_IP="$SERVER_IP"
   append: true
 runcmd:
-- snap install go --classic
-- git clone https://github.com/agalue/fsstress.git /tmp/fsstress
-- cd /tmp/fsstress
-- su -c 'go build -o /home/ubuntu/fsstress -buildvcs=false' ubuntu
 - apt install -y linux-modules-extra-\$(uname -r) nfs-common cifs-utils
 - modprobe cifs
 - mkdir -p /mnt/nfs /mnt/smb
 - mount -t nfs -o sec=sys,noatime,hard,nconnect=8 $SERVER_IP:/srv/nfs /mnt/nfs
 - mount -t cifs -o uid=1000,gid=1000,noatime,hard,guest //$SERVER_IP/share /mnt/smb
 EOF
+GOOS=linux GOARCH=amd64 go build -o fsstress .
+multipass transfer fsstress client:/home/ubuntu/fsstress
 ```
 
 Once the VM is up, the tool's code and the shared file systems will be available. Just in case, run the following:
@@ -99,6 +97,8 @@ While the above is running, on another shell, you can verify that the data is be
 ```bash
 multipass exec server -- ls -als /srv/nfs
 ```
+
+From the client VM, you can use `nfsiostat` or `cifsiostat` to check the protocol-level statistics.
 
 ## Cleanup
 
