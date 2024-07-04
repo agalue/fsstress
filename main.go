@@ -23,7 +23,7 @@ var (
 	workers   = 2
 	min       = 5
 	max       = 100
-	chunkSize = 262144
+	chunkSize = 131072
 	totals    = Totals{}
 	fprefix   = generateRandomString(16)
 )

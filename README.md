@@ -15,17 +15,22 @@ packages:
 - nfs-kernel-server
 - samba
 write_files:
+- path: /etc/nfs.conf.d/custom.conf
+  content: |
+    [nfsd]
+    udp=y
+    tcp=y
 - path: /etc/samba/share.conf
   content: |
     [share]
-        comment = Shared Drive
-        path = /srv/smb
-        read only = no
-        browsable = yes
-        guest ok = yes
-        writeable = yes
-        create mask = 0666
-        directory mask = 0775
+      comment = Shared Drive
+      path = /srv/smb
+      read only = no
+      browsable = yes
+      guest ok = yes
+      writeable = yes
+      create mask = 0666
+      directory mask = 0775
 runcmd:
 - cat /etc/samba/smb.conf /etc/samba/share.conf > /etc/samba/tmp.conf
 - mv /etc/samba/tmp.conf /etc/samba/smb.conf
@@ -47,6 +52,11 @@ The following creates a client and mount the NFS file system at `/mnt/nfs` and t
 SERVER_IP=$(multipass info server | grep IPv4 | awk '{print $2}')
 cat <<EOF | multipass launch --name client --cloud-init -
 #cloud-config
+write_files:
+- path: /etc/environment
+  content: |
+    SERVER_IP="$SERVER_IP"
+  append: true
 runcmd:
 - snap install go --classic
 - git clone https://github.com/agalue/fsstress.git /tmp/fsstress
@@ -73,6 +83,8 @@ The output should see something like this:
 
 //192.168.66.83/share on /mnt/smb type cifs (rw,relatime,vers=3.1.1,sec=none,cache=strict,uid=1000,noforceuid,gid=1000,noforcegid,addr=192.168.66.83,file_mode=0755,dir_mode=0755,hard,nounix,serverino,mapposix,rsize=4194304,wsize=4194304,bsize=1048576,retrans=1,echo_interval=60,actimeo=1,closetimeo=1)
 ```
+
+> Note the number of client retransmissions for NFS over TCP defaults to 2 (with a timeout of 60 seconds) and for SMB to 1. However, for NFS over TCP, the retransmissions are handled at the protocol level, so the `retrans` parameter is ignored.
 
 ## Start the tool
 
