@@ -111,9 +111,9 @@ func main() {
 	}
 
 	slog.Info("Starting data generation")
-	go clearBufferCache(3 * time.Second)
 
 	ctx, cancel := context.WithCancel(context.Background())
+	go clearBufferCache(ctx, 5*time.Second)
 
 	results := make(chan Result, 100)
 	go processResults(results)
@@ -273,11 +273,17 @@ func generateRandomString(length int) string {
 	return hex.EncodeToString(b)[:length]
 }
 
-func clearBufferCache(freq time.Duration) {
-	for ; ; <-time.After(freq) {
-		if err := mem.ClearBufferCache(); err != nil {
-			slog.Error("couldn't clear the buffer cache", slog.String("error", err.Error()))
-			return
+func clearBufferCache(ctx context.Context, freq time.Duration) {
+	ticker := time.NewTicker(freq)
+	for {
+		select {
+		case <-ctx.Done():
+			ticker.Stop()
+		case <-ticker.C:
+			if err := mem.ClearBufferCache(); err != nil {
+				slog.Error("couldn't clear the buffer cache", slog.String("error", err.Error()))
+				return
+			}
 		}
 	}
 }
