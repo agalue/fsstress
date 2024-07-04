@@ -143,6 +143,7 @@ func writeFile(fileName string, size int) (int, error) {
 	total := 0
 	chunk := bytes.Repeat([]byte{48}, chunkSize)
 	if fo, err := os.Create(fileName); err == nil {
+		defer fo.Close()
 		for total <= size {
 			if out, err := fo.Write(chunk); err == nil {
 				total += out
@@ -150,7 +151,7 @@ func writeFile(fileName string, size int) (int, error) {
 				return total, err
 			}
 		}
-		return total, fo.Close()
+		return total, nil
 	} else {
 		return total, err
 	}
@@ -159,6 +160,7 @@ func writeFile(fileName string, size int) (int, error) {
 func readFile(fileName string) (int, error) {
 	total := 0
 	if fi, err := os.Open(fileName); err == nil {
+		defer fi.Close()
 		buf := make([]byte, chunkSize)
 		for {
 			in, err := fi.Read(buf)
@@ -170,7 +172,7 @@ func readFile(fileName string) (int, error) {
 			}
 			total += in
 		}
-		return total, fi.Close()
+		return total, nil
 	} else {
 		return total, err
 	}
