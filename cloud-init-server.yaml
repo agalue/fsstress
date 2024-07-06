@@ -1,0 +1,32 @@
+#cloud-config
+packages:
+- avahi-daemon
+- nfs-kernel-server
+- samba
+write_files:
+- path: /etc/nfs.conf.d/custom.conf
+  content: |
+    [nfsd]
+    udp=y
+    tcp=y
+- path: /etc/samba/share.conf
+  content: |
+    [share]
+      comment = Shared Drive
+      path = /srv/smb
+      read only = no
+      browsable = yes
+      guest ok = yes
+      writeable = yes
+      create mask = 0666
+      directory mask = 0775
+runcmd:
+- cat /etc/samba/smb.conf /etc/samba/share.conf > /etc/samba/tmp.conf
+- mv /etc/samba/tmp.conf /etc/samba/smb.conf
+- mkdir -p /srv/smb /srv/nfs
+- chown -R 1000:1000 /srv/*
+- chmod -R 777 /srv/*
+- echo "/srv/nfs *(rw,all_squash,no_subtree_check)" >> /etc/exports
+- systemctl enable --now nfs-kernel-server smbd nmbd
+- systemctl restart smbd nmbd
+- exportfs -a
