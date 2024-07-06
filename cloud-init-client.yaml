@@ -1,6 +1,7 @@
 #cloud-config
 packages:
 - avahi-daemon
+
 runcmd:
 - apt install -y linux-modules-extra-$(uname -r) nfs-common cifs-utils
 - modprobe cifs

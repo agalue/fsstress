@@ -3,14 +3,19 @@ packages:
 - avahi-daemon
 - nfs-kernel-server
 - samba
+
 write_files:
 - path: /etc/nfs.conf.d/custom.conf
   content: |
     [nfsd]
     udp=y
     tcp=y
-- path: /etc/samba/share.conf
+
+- path: /etc/samba/smb.conf
   content: |
+    [global]
+    workgroup = EXAMPLE
+
     [share]
       comment = Shared Drive
       path = /srv/smb
@@ -20,9 +25,8 @@ write_files:
       writeable = yes
       create mask = 0666
       directory mask = 0775
+
 runcmd:
-- cat /etc/samba/smb.conf /etc/samba/share.conf > /etc/samba/tmp.conf
-- mv /etc/samba/tmp.conf /etc/samba/smb.conf
 - mkdir -p /srv/smb /srv/nfs
 - chown -R 1000:1000 /srv/*
 - chmod -R 777 /srv/*
