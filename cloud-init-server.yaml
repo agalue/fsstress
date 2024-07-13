@@ -11,6 +11,10 @@ write_files:
     udp=y
     tcp=y
 
+- path: /etc/exports
+  content: |
+    /srv/nfs *(rw,all_squash,no_subtree_check)
+
 - path: /etc/samba/smb.conf
   content: |
     [global]
@@ -30,7 +34,6 @@ runcmd:
 - mkdir -p /srv/smb /srv/nfs
 - chown -R 1000:1000 /srv/*
 - chmod -R 777 /srv/*
-- echo "/srv/nfs *(rw,all_squash,no_subtree_check)" >> /etc/exports
-- systemctl enable --now nfs-kernel-server smbd nmbd
-- systemctl restart smbd nmbd
+- systemctl enable nfs-kernel-server smbd nmbd
+- systemctl restart nfs-kernel-server smbd nmbd
 - exportfs -a
