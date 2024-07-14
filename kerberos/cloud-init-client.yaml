@@ -3,7 +3,6 @@ manage_etc_hosts: false
 
 packages:
 - krb5-user
-- avahi-daemon
 - nfs-common
 - cifs-utils
 
@@ -59,4 +58,4 @@ write_files:
     gid=$(getent group users | cut -d: -f3)
     mkdir -p /mnt/nfs /mnt/smb
     mount -t nfs -o sec=krb5p,noatime,hard,nconnect=8 server.agalue.io:/srv/nfs /mnt/nfs
-    mount -t cifs -o sec=krb5,noatime,hard,domain=agalue.io,user=root,uid=$uid,gid=$gid,file_mode=0666,dir_mode=0775,vers=3.1.1 //server.agalue.io/share /mnt/smb
+    mount -t cifs -o sec=krb5i,noatime,hard,domain=agalue.io,user=root,uid=$uid,gid=$gid,file_mode=0666,dir_mode=0775,vers=3.1.1 //server.agalue.io/share /mnt/smb

@@ -4,7 +4,6 @@ manage_etc_hosts: false
 packages:
 - krb5-kdc
 - krb5-admin-server
-- avahi-daemon
 - nfs-kernel-server
 - samba
 
