@@ -5,12 +5,6 @@ packages:
 - samba
 
 write_files:
-- path: /etc/nfs.conf.d/custom.conf
-  content: |
-    [nfsd]
-    udp=y
-    tcp=y
-
 - path: /etc/exports
   content: |
     /srv/nfs *(rw,all_squash,no_subtree_check)
