@@ -1,0 +1,62 @@
+#cloud-config
+manage_etc_hosts: false
+
+packages:
+- krb5-user
+- avahi-daemon
+- nfs-common
+- cifs-utils
+
+write_files:
+- path: /etc/krb5.conf
+  content: |
+    [libdefaults]
+      default_realm = AGALUE.IO
+
+    [realms]
+      AGALUE.IO = {
+        kdc = server.agalue.io
+        admin_server = server.agalue.io
+      }
+
+    [domain_realm]
+      .agalue.io = AGALUE.IO
+      agalue.io = AGALUE.IO
+
+- path: /etc/idmapd.conf
+  content: |
+    [General]
+    Domain = agalue.io
+
+- path: /etc/default/nfs-common
+  content: |
+    NEED_IDMAPD=yes
+    NEED_GSSD=yes
+
+- path: /usr/local/bin/setup.sh
+  permissions: '0755'
+  content: |
+    #!/bin/bash
+
+    usermod -a -G users ubuntu
+    cp /tmp/hosts /etc/hosts
+    cp /tmp/krb5.keytab /etc/krb5.keytab
+    chmod 600 /etc/krb5.keytab
+
+    apt install -y linux-modules-extra-$(uname -r)
+    modprobe cifs
+
+    systemctl enable --now rpcbind
+    systemctl enable --now rpc-gssd
+
+    kinit -kt /etc/krb5.keytab host/client.agalue.io
+    kinit -kt /etc/krb5.keytab root
+    klist
+
+    systemctl restart rpc-gssd
+
+    uid=$(id -u nobody)
+    gid=$(getent group users | cut -d: -f3)
+    mkdir -p /mnt/nfs /mnt/smb
+    mount -t nfs -o sec=krb5p,noatime,hard,nconnect=8 server.agalue.io:/srv/nfs /mnt/nfs
+    mount -t cifs -o sec=krb5,domain=agalue.io,user=root,uid=$uid,gid=$gid,file_mode=0666,dir_mode=0775,vers=3.1.1 //server.agalue.io/share /mnt/smb

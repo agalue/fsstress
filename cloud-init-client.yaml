@@ -1,9 +1,11 @@
 #cloud-config
 packages:
 - avahi-daemon
+- nfs-common
+- cifs-utils
 
 runcmd:
-- apt install -y linux-modules-extra-$(uname -r) nfs-common cifs-utils
+- apt install -y linux-modules-extra-$(uname -r)
 - modprobe cifs
 - mkdir -p /mnt/nfs /mnt/smb
 - mount -t nfs -o sec=sys,noatime,hard,nconnect=8 server.local:/srv/nfs /mnt/nfs

@@ -1,0 +1,129 @@
+#cloud-config
+manage_etc_hosts: false
+
+packages:
+- krb5-kdc
+- krb5-admin-server
+- avahi-daemon
+- nfs-kernel-server
+- samba
+
+write_files:
+- path: /etc/samba/smb.conf
+  content: |
+    [global]
+      workgroup = AGALUE
+      realm = AGALUE.IO
+      netbios name = SERVER
+      security = auto
+      kerberos method = secrets and keytab
+      server role = standalone server
+      log level = 3
+
+    [share]
+      comment = Shared Drive
+      path = /srv/smb
+      read only = no
+      browsable = yes
+      writeable = yes
+      create mask = 0666
+      directory mask = 0775
+
+- path: /etc/exports
+  content: |
+    /srv/nfs *(rw,all_squash,no_root_squash,no_subtree_check,sec=krb5:krb5i:krb5p)
+
+- path: /etc/idmapd.conf
+  content: |
+    [General]
+    Domain = agalue.io
+
+- path: /etc/default/nfs-common
+  content: |
+    NEED_IDMAPD=yes
+    NEED_GSSD=yes
+
+- path: /etc/default/nfs-kernel-server
+  content: |
+    NEED_SVCGSSD=yes
+
+- path: /etc/krb5.conf
+  content: |
+    [libdefaults]
+      default_realm = AGALUE.IO
+
+    [realms]
+      AGALUE.IO = {
+        kdc = server.agalue.io
+        admin_server = server.agalue.io
+      }
+
+    [domain_realm]
+      .agalue.io = AGALUE.IO
+      agalue.io = AGALUE.IO
+
+- path: /etc/krb5kdc/kdc.conf
+  content: |
+    [kdcdefaults]
+      kdc_ports = 750,88
+
+    [realms]
+      AGALUE.IO = {
+        master_key_type = aes256-cts
+        acl_file = /etc/krb5kdc/kadm5.acl
+        dict_file = /usr/share/dict/words
+        admin_keytab = /etc/krb5kdc/kadm5.keytab
+        supported_enctypes = aes256-cts:normal aes128-cts:normal
+      }
+
+- path: /etc/krb5kdc/kadm5.acl
+  content: |
+    */admin@AGALUE.IO *
+
+- path: /usr/local/bin/setup.sh
+  permissions: '0755'
+  content: |
+    #!/bin/bash
+
+    cp /tmp/hosts /etc/hosts
+
+    # Create Target Volumes
+    usermod -a -G users ubuntu
+    mkdir -p /srv/nfs /srv/smb
+    chown nobody:users /srv/*
+    chmod 775 /srv/*
+
+    # Create Kerberos Database
+    kdb5_util create -s -r AGALUE.IO -P K3rb3r0s@dm1n
+
+    # Create Principals for the server
+    kadmin.local -q "addprinc -randkey nfs/server.agalue.io"
+    kadmin.local -q "ktadd nfs/server.agalue.io"
+    kadmin.local -q "addprinc -randkey +no_auth_data_required cifs/server.agalue.io"
+    kadmin.local -q "ktadd cifs/server.agalue.io"
+
+    # Create Principals and Keytab for the Client
+    kadmin.local -q "addprinc -randkey host/client.agalue.io" # NFS Mount
+    kadmin.local -q "addprinc -randkey root" # SMB Mount
+    kadmin.local -q "addprinc -pw U3untu; ubuntu" # NFS Usage
+    kadmin.local -q "ktadd -k /tmp/krb5.keytab host/client.agalue.io"
+    kadmin.local -q "ktadd -k /tmp/krb5.keytab root"
+    chmod 644 /tmp/krb5.keytab
+
+    # Enable Required Services
+    systemctl enable --now krb5-kdc
+    systemctl enable --now krb5-admin-server
+    systemctl enable --now rpcbind
+    systemctl enable --now rpc-statd
+    systemctl enable --now rpc-gssd
+    systemctl enable --now rpc-svcgssd
+    systemctl enable --now smbd
+    systemctl enable --now nmbd
+
+    # Restart key services
+    systemctl restart nfs-kernel-server smbd nmbd
+
+    # Verification
+    exportfs -v
+    klist -ket /etc/krb5.keytab
+    klist -ket /tmp/krb5.keytab
